@@ -1,0 +1,7 @@
+# Golden comparisons are byte exact: never convert line endings in test data.
+tests/JsonnetSharp.Tests/testdata/** -text
+tests/JsonnetSharp.Tests/cpp_test_suite/** -text
+*.golden -text
+tests/JsonnetSharp.Tests/cpp_test_cmd/** -text
+# Embedded verbatim: <std> error snippets print its source lines.
+src/JsonnetSharp/Std/std.jsonnet -text

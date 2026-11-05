@@ -1,0 +1,15 @@
+RUNTIME ERROR: Assertion failed. "\u001b[31m" != ""
+-------------------------------------------------
+	<std>:861:7-56	function <anonymous>
+
+      error 'Assertion failed. ' + astr + ' != ' + bstr,
+
+-------------------------------------------------
+	testdata/assert_equal6:1:1-34	$
+
+std.assertEqual("\u001b[31m", "")
+
+-------------------------------------------------
+	During evaluation	
+
+

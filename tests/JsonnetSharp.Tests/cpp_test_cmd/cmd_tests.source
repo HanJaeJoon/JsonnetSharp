@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+
+# Copyright 2015 Google Inc. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+# Global counters
+EXECUTED=0
+FAILED=0
+
+
+JSONNET_BIN="${JSONNET_BIN:-../jsonnet}"
+JSONNETFMT_BIN="${JSONNETFMT_BIN:-../jsonnetfmt}"
+
+OVERRIDE_DIR="${OVERRIDE_DIR:-.}"
+
+UPDATE_GOLDENS="${UPDATE_GOLDENS:-0}"
+
+separator() {
+    echo -e "\n-----------------------------\n"
+}
+
+check_file_sed() {
+    local TEST="$1"
+    local RESULT_FILENAME="$2"
+    local GOLDEN_FILENAME="$3"
+    local SED_SCRIPT="$4"
+    local HAS_DIFF
+
+    if [[ -z "$SED_SCRIPT" ]]; then
+        SED_SCRIPT='p'
+    fi
+    
+    cmp --quiet "$GOLDEN_FILENAME" <(sed --silent -E -e "$SED_SCRIPT" "$RESULT_FILENAME")
+    HAS_DIFF="$?"
+        
+    if [ "${HAS_DIFF}" -eq 2 ]; then
+        FAILED=$((FAILED + 1))
+        printf "\033[31;1mERROR\033[0m \033[1m(cmp failed)\033[0m: \033[36m%s\033[0m\n" "$TEST"
+        return 1
+    elif [ "${HAS_DIFF}" -ne 0 ] ; then
+        if [[ "${UPDATE_GOLDENS}" -eq 1 ]]; then
+            printf "\033[31;1mUPDATING\033[0m \033[1m(stdout mismatch)\033[0m: \033[36m%s\033[0m\n" "$TEST"
+            > "${GOLDEN_FILENAME}" sed --silent -E -e "$SED_SCRIPT" "$RESULT_FILENAME"
+        else
+            FAILED=$((FAILED + 1))
+            if [ -z "${SUMMARY_ONLY:-}" ]; then
+                printf "\033[31;1mFAIL\033[0m \033[1m(stdout mismatch)\033[0m: \033[36m%s\033[0m\n" "$TEST"
+                echo "Result output:"
+                sed --silent -E -e "$SED_SCRIPT" "$RESULT_FILENAME"
+                echo "Expected output:"
+                cat "${GOLDEN_FILENAME}"
+                echo "Diff:"
+                # Using git diff for pretty format and pretty colors
+                git --no-pager diff --color --no-index "$GOLDEN_FILENAME" <(sed --silent -E -e "$SED_SCRIPT" "$RESULT_FILENAME")
+                # The output is often quite long, let's repeat the filename once more
+                # to avoid wasting time on looking for it
+                printf "\nTEST ABOVE: \033[36m%s\033[0m\n" "$TEST"
+                separator
+            fi
+            return 1
+        fi
+    fi
+}
+
+check_file() {
+    check_file_sed "$1" "$2" "$3" ""
+}
+
+do_test_aux() {
+    local BINARY="$1"
+    local TEST="$2"
+    local EXPECTED_EXIT_CODE="$3"
+    shift 3
+
+    local STDIN="${TEST}.stdin"
+    local GOLDEN_STDOUT="${TEST}.golden.stdout"
+    local GOLDEN_STDERR="${TEST}.golden.stderr"
+
+    if [ -r "${OVERRIDE_DIR}/${GOLDEN_STDOUT}" ] ; then
+        GOLDEN_STDOUT="${OVERRIDE_DIR}/${GOLDEN_STDOUT}"
+    fi
+    if [ -r "${OVERRIDE_DIR}/${GOLDEN_STDERR}" ] ; then
+        GOLDEN_STDERR="${OVERRIDE_DIR}/${GOLDEN_STDERR}"
+    fi
+
+    local CASE_OUT_DIR="${OUT_DIR}/${TEST}"
+    local STDOUT="${CASE_OUT_DIR}/stdout"
+    local STDERR="${CASE_OUT_DIR}/stderr"
+
+    if [ ! -r "${STDIN}" ] ; then
+        STDIN="/dev/null"
+    fi
+
+    if [ ! -r "${GOLDEN_STDOUT}" ] ; then
+        GOLDEN_STDOUT="/dev/null"
+    fi
+
+    if [ ! -r "${GOLDEN_STDERR}" ] ; then
+        GOLDEN_STDERR="/dev/null"
+    fi
+
+
+    mkdir -p "${CASE_OUT_DIR}"
+    local TEST_EXIT_CODE=0
+    "${BINARY}" "$@" >"${STDOUT}" 2>"${STDERR}" <"${STDIN}" || TEST_EXIT_CODE="$?"
+    EXECUTED=$((EXECUTED + 1))
+
+    if [ "$TEST_EXIT_CODE" -ne "$EXPECTED_EXIT_CODE" ] ; then
+        FAILED=$((FAILED + 1))
+        if [ -z "${SUMMARY_ONLY:-}" ]; then
+            printf "\033[31;1mFAIL\033[0m \033[1m(exit code)\033[0m: \033[36m%s\033[0m\n" "$TEST"
+            echo "This run's stdout:"
+            cat "$STDOUT"
+            echo "This run's stderr:"
+            cat "$STDERR"
+            echo "Actual exit code $TEST_EXIT_CODE, expected $EXPECTED_EXIT_CODE"
+            separator
+        fi
+        return 1
+    fi
+
+    if ! check_file_sed "${TEST}" "${STDOUT}" "${GOLDEN_STDOUT}" "${SED_STDOUT:-}"; then
+        return 1
+    fi
+
+    if ! check_file_sed "${TEST}" "${STDERR}" "${GOLDEN_STDERR}" "${SED_STDERR:-}"; then
+        return 1
+    fi
+}
+
+do_test() {
+    local TEST="$1"
+    local EXPECTED_EXIT_CODE="$2"
+    shift 2
+    do_test_aux "${JSONNET_BIN}" "$TEST" "$EXPECTED_EXIT_CODE" "$@"
+    return $?
+}
+
+do_fmt_test() {
+    local TEST="$1"
+    local EXPECTED_EXIT_CODE="$2"
+    shift 2
+    do_test_aux "${JSONNETFMT_BIN}" "$TEST" "$EXPECTED_EXIT_CODE" "$@"
+    return $?
+}

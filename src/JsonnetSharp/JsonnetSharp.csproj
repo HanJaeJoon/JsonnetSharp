@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net8.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>0.1.0</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Authors>HanJaeJoon</Authors>
+    <Description>A pure C# implementation of the Jsonnet data templating language, ported from go-jsonnet.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/HanJaeJoon/JsonnetSharp</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/HanJaeJoon/JsonnetSharp.git</RepositoryUrl>
+    <PackageTags>jsonnet, go-jsonnet, JSON, configuration, templating, CSharp, .NET</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+    <Copyright>Copyright (c) 2026 HanJaeJoon; portions Copyright 2015-2017 Google Inc. (go-jsonnet)</Copyright>
+    <PackageReleaseNotes>See https://github.com/HanJaeJoon/JsonnetSharp/blob/main/CHANGELOG.md</PackageReleaseNotes>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <EnablePackageValidation>true</EnablePackageValidation>
+
+    <!-- SourceLink: lets package consumers step into the GitHub sources while debugging -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Generates the types newer C# features need on netstandard at compile time (no runtime dependency) -->
+    <PackageReference Include="PolySharp" Version="1.15.0" PrivateAssets="all" Condition="$(TargetFramework.StartsWith('netstandard'))" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="JsonnetSharp.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- cpp-jsonnet stdlib/std.jsonnet at the commit go-jsonnet v0.22.0 pins; go-jsonnet ships it as astgen/stdast.go -->
+    <EmbeddedResource Include="Std\std.jsonnet" LogicalName="JsonnetSharp.std.jsonnet" />
+  </ItemGroup>
+
+</Project>

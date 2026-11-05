@@ -1,0 +1,66 @@
+name: Build, Test, and Publish NuGet Package
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*' # publish only when a release tag (v<version>) is pushed
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write # allow issuing the GitHub OIDC token for Trusted Publishing
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+      - name: Pack
+        run: dotnet pack --configuration Release --no-build --output ./nupkg
+
+      # before publishing, verify the tag (v<version>) matches <Version> in the csproj
+      - name: Verify tag matches csproj version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=$(grep -oPm1 '(?<=<Version>)[^<]+' src/JsonnetSharp/JsonnetSharp.csproj)
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$VERSION" != "$TAG_VERSION" ]; then
+            echo "csproj version ($VERSION) does not match tag ($TAG_VERSION)"
+            exit 1
+          fi
+
+      # Trusted Publishing: exchange the OIDC token for a temporary API key valid for one hour
+      # (requires a Trusted Publishing policy on nuget.org -> account -> Trusted Publishing)
+      - name: NuGet login (OIDC -> temp API key)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: JaejoonHan # nuget.org profile name
+
+      - name: Publish to NuGet
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
