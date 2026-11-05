@@ -326,17 +326,6 @@ public class DogfoodRound1Tests
         Assert.Equal(new[] { "\uFFFDb" }, vm.EvaluateAnonymousSnippetMulti("x", "{[std.extVar('x')]: 'v'}").Keys);
     }
 
-    // splitlimitr-quadratic
-    [Fact]
-    public void SplitLimitRIsLinear()
-    {
-        System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
-        Assert.Equal("500001\n", Eval("std.length(std.splitLimitR(std.repeat('a,', 500000), ',', -1))"));
-        // Copying the rest of the string on every split took minutes for this input.
-        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(60), sw.Elapsed.ToString());
-        Assert.Equal("[\n   \"a,b\",\n   \"c\",\n   \"d\"\n]\n", Eval("std.splitLimitR('a,b,c,d', ',', 2)"));
-    }
-
     private const string YamlNullKey = "RUNTIME ERROR: failed to parse YAML: error converting YAML to JSON: unsupported map key of type: %!s(<nil>), key: <nil>, value: ";
 
     // yaml-nan-key-goformat-crash
@@ -801,6 +790,26 @@ public class SerialCollection
 [Collection(nameof(SerialCollection))]
 public class SerialDogfoodTests
 {
+    // splitlimitr-quadratic: copying the rest of the string on every split made this quadratic. Serial: timing.
+    // Compares two sizes instead of a wall-clock limit: 4x the input takes ~4x as long when linear, ~16x when quadratic.
+    [Fact]
+    public void SplitLimitRIsLinear()
+    {
+        static TimeSpan Time(int n)
+        {
+            System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+            Assert.Equal((n + 1) + "\n", new JsonnetVm().EvaluateAnonymousSnippet("x",
+                "std.length(std.splitLimitR(std.repeat('a,', " + n + "), ',', -1))"));
+            return sw.Elapsed;
+        }
+
+        Time(20000);
+        TimeSpan small = Time(100000), large = Time(400000);
+        Assert.True(large.Ticks < (small.Ticks * 8) + TimeSpan.FromSeconds(1).Ticks, small + " vs " + large);
+        Assert.Equal("[\n   \"a,b\",\n   \"c\",\n   \"d\"\n]\n",
+            new JsonnetVm().EvaluateAnonymousSnippet("x", "std.splitLimitR('a,b,c,d', ',', 2)"));
+    }
+
     // x86-concurrent-eval-oom-crash: past the stack budget (512 MB in a 32-bit process) an evaluation runs on the
     // calling thread instead of reserving address space until the process dies. Serial: it lowers the budget.
     [Fact]
