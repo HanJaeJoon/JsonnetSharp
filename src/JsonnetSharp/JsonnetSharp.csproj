@@ -19,6 +19,7 @@
     <PackageReleaseNotes>See https://github.com/HanJaeJoon/JsonnetSharp/blob/main/CHANGELOG.md</PackageReleaseNotes>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion>0.1.0</PackageValidationBaselineVersion>
 
     <!-- SourceLink: lets package consumers step into the GitHub sources while debugging -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
